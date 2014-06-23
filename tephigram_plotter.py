@@ -51,13 +51,15 @@ qs_ = 1.e-3*np.array([30., 20., 15., 10., 7., 5., 3., 2., 15., 1.0, 0.7,])
 
 x_min = -40.
 x_max = 60.0
-        
-        
+y_min = -10.
+y_max = 100.
+
 T_ = np.arange(T_min, T_max+0.1, d_T)
 
 class Tephigram:
     def __init__(self):
-        fig = plot.figure(figsize=(10,20))
+        fig = plot.figure(figsize=(10,10))
+        self.fig = fig
         self.setup_axes1(fig, '111')
         self.plot_temp_lines()
         self.plot_pot_temp_lines()
@@ -65,13 +67,23 @@ class Tephigram:
         self.plot_qs_lines()
         self.plot_sat_adiabats()
 
-    def plot_sounding(self, P, T, r):
-        """
-        Input sounding defined by P, T and r
-        """
-        theta = self.f_theta(P=(P/100.), T=T)
+    def savefig(self, filename):
+        self.fig.savefig(filename)
 
-        self.ax1.plot(*self._tf(T-273.15, theta-273.15), marker='o', color='pink')
+    def plot_sounding(self, P, T, T_dp):
+        """
+        Input sounding defined by P, T and T_dp
+
+        Expected units:
+            T [C], P [hPa], T_dp [C]
+        """
+        theta = self.f_theta(P=P, T=(T+273.15))
+
+        self.ax1.plot(*self._tf(T, theta-273.15), marker='o', color='red')
+
+        theta = self.f_theta(P=P, T=(T_dp+273.15))
+        self.ax1.plot(*self._tf(T_dp, theta-273.15), marker='o', color='green')
+
 
     def setup_axes1(self, fig, rect):
         """
@@ -81,11 +93,11 @@ class Tephigram:
         self.tr = Affine2D().rotate_deg(deg)
 
         T_ticks = np.arange(T_min, T_max, d_T)
-        theta_ticks = np.arange(theta_min, theta_max, d_T)
+        theta_ticks = [] #np.arange(theta_min, theta_max, d_T)
 
         grid_helper = GridHelperCurveLinear(self.tr, grid_locator1=FixedLocator(T_ticks), grid_locator2=FixedLocator(theta_ticks))
 
-        ax1 = Subplot(fig, 1, 1, 1, grid_helper=grid_helper, transform=self.tr)
+        ax1 = Subplot(fig, 1, 1, 1, grid_helper=grid_helper)
         # ax1 will have a ticks and gridlines defined by the given
         # transform (+ transData of the Axes). Note that the transform of
         # the Axes itself (i.e., transData) is not affected by the given
@@ -100,11 +112,12 @@ class Tephigram:
 
         ax1.set_aspect(1.)
         ax1.set_xlim(x_min, x_max)
-        ax1.set_ylim(-10., 100.)
+        ax1.set_ylim(y_min, y_max)
+        ax1.set_xlabel('Temperature [C]')
 
-        ax1.axis["t"]=ax1.new_floating_axis(0, 0.)
-        T_axis = ax1.axis['t']
-        theta_axis = ax1.axis["t2"]=ax1.new_floating_axis(1, 0.)
+        #ax1.axis["t"]=ax1.new_floating_axis(0, 0.)
+        #T_axis = ax1.axis['t']
+        #theta_axis = ax1.axis["t2"]=ax1.new_floating_axis(1, 0.)
         
         plot.draw()
         plot.show()
@@ -118,12 +131,12 @@ class Tephigram:
 
     def plot_temp_lines(self):
         for T in T_:
-            self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle='-', color='red')
+            self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle=':', color='red')
 
     def plot_pot_temp_lines(self):
         theta_ = np.arange(theta_min, theta_max, d_theta)
         for theta in theta_:
-            self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle='-', color='green')
+            self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle=':', color='green')
 
     def plot_pressure_lines(self):
         """
@@ -134,10 +147,9 @@ class Tephigram:
             theta_constP = -273.15 + self.f_theta(P, T__+273.15)
 
             x, y = self._tf(T__, theta_constP)
-            mask = x>(x_min + 0.1*(x_max-x_min))
-            self.ax1.plot(x[mask], y[mask], linestyle='-', color='blue')
+            self.ax1.plot(x, y, linestyle=':', color='blue')
 
-            k = np.argmin((x>x_min)*x)
+            k = np.argmax((x<x_max)*x)
 
             x0 = x[k]
             y0 = y[k]
@@ -153,13 +165,24 @@ class Tephigram:
           q_s = 0.622*e_s/p
         """
 
+        T_ = np.linspace(T_min, T_max, 1000)
+
         for qs in qs_:
             Tk = T_ + 273.15
             Pqs = 0.622*esat(Tk)/qs
 
             theta = -273.15 + self.f_theta(P=Pqs,T=Tk)
 
-            self.ax1.plot(*self._tf(T_, theta), linestyle=':', color='grey')
+            x, y = self._tf(T_, theta)
+
+            self.ax1.plot(x, y, linestyle='--', color='purple')
+
+            k = np.argmin((y>y_min)*y)
+
+            x0 = x[k] - 1.
+            y0 = y[k] 
+
+            plot.text(x0, y0, "%g" % (qs*1000.), color='purple')
 
     def plot_sat_adiabats(self):
         """
@@ -175,9 +198,11 @@ class Tephigram:
 
             theta_const_qs_K = [theta0+273.15,]
             T_arr_K = [T0+273.15,]
+            P_arr = []
 
             Tk = T_arr_K[0]
             P = 1000*( Tk/theta_const_qs_K[-1])**3.5
+            P_arr.append(P)
             qs0 = 0.622*esat(Tk)/P
 
             for i in range(int(T_max-T_min)):
@@ -191,28 +216,34 @@ class Tephigram:
 
                 theta_const_qs_K.append(theta_new_K)
                 T_arr_K.append(Tk)
+                P_arr.append(P)
                 qs0 = qs
 
             T = np.array(T_arr_K) - 273.15
             theta_const_qs = np.array(theta_const_qs_K) - 273.15
+            
+            x, y = self._tf(T, theta_const_qs)
+            self.ax1.plot(x, y, linestyle='-.', color='black')
 
-            self.ax1.plot(*self._tf(T, theta_const_qs), linestyle='--', color='black')
+            k = np.argmin(np.abs(np.array(P_arr)-1000.))
+            T_at_1000 = T[k]
 
-tephigram = Tephigram()
+            kk = np.argmin((x>x_min)*x - (y<y_max)*y)
 
-sounding = np.loadtxt('sounding_example.dat', unpack=True)
-P = sounding[0]*100.
-T = sounding[2]+273.15
-rh = sounding[4]
+            x0 = x[kk] + 1.
+            y0 = y[kk] - 2.
 
-#from pycfd.reference.atmospheric_flow import stratification_profiles
+            self.ax1.text(x0, y0, "%gC" % T_at_1000, color='black')
+        
 
-#profile = stratification_profiles.getStandardIsentropicAtmosphere()
-#z = [np.linspace(0., 10000., 100)]
-#P = profile.p(z)
-#T = profile.temp(z)
+if __name__ == "__main__":
+    tephigram = Tephigram()
 
-tephigram.plot_sounding(P=P, T=T, r=rh)
-raw_input()
+    sounding = np.loadtxt('sounding_example.dat', unpack=True)
+    P = sounding[0]
+    T = sounding[2]
+    T_dp = sounding[3]
 
+    tephigram.plot_sounding(P=P, T=T, T_dp=T_dp)
 
+    tephigram.savefig('tephigram_example.png')
