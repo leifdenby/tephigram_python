@@ -177,6 +177,7 @@ class Tephigram:
         """
         theta = T*(1000/p)^0.286
         """
+        x0 = None
         for P in np.arange(P_min, P_max+0.1, d_P):
             T__ = np.linspace(T_min, T_max, 1000.)
             theta_constP = -273.15 + self.f_theta(P, T__+273.15)
@@ -186,7 +187,8 @@ class Tephigram:
 
             k = np.argmax((x<x_max)*x)
 
-            x0 = x[k]
+            if x0 is None:
+                x0 = 1 + x[k]
             y0 = y[k]
 
             plot.text(x0, y0, '%dhPa' % P, color='blue')
@@ -214,10 +216,11 @@ class Tephigram:
 
             k = np.argmin((y>y_min)*y)
 
-            x0 = x[k] - 1.
-            y0 = y[k] 
+            x0 = x[k] 
+            y0 = y[k] + 1.
 
-            plot.text(x0, y0, "%g" % (qs*1000.), color='purple')
+            bbox = dict(facecolor='white', edgecolor='white', alpha=0.7)
+            plot.text(x0, y0, "%g" % (qs*1000.), color='purple', bbox=bbox)
 
     def plot_sat_adiabats(self):
         """
