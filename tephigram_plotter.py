@@ -51,21 +51,23 @@ T_min, T_max,d_T = -100., 40., 10.
 P_min, P_max, d_P = 200., 1000., 100.
 qs_ = 1.e-3*np.array([30., 20., 15., 10., 7., 5., 3., 2., 15., 1.0, 0.7,])
 
-x_min = -40.
+x_min = -20
 x_max = 60.0
-y_min = -10.
-y_max = 80.
 
 T_ = np.arange(T_min, T_max+0.1, d_T)
 
 class Tephigram:
-    def __init__(self, fig=None, subplotshape=None):
+    def __init__(self, fig=None, subplotshape=None, y_range=(-10, 120)):
+        self.y_range = y_range
+        self.plot_annotations = False
+
         if fig is None:
             fig = plot.figure(figsize=(10,10))
         self.fig = fig
         self.setup_axes1(fig, subplotshape)
         self.plot = plot
         self.lines = []
+
 
         self.plot_temp_lines()
         self.plot_pot_temp_lines()
@@ -91,7 +93,7 @@ class Tephigram:
         theta = self.f_theta(P=P, T=(T_dp+273.15))
         self.ax1.plot(*self._tf(T_dp, theta-273.15), marker='o', color='green')
 
-    def plot_temp(self, P, T, color='red'):
+    def plot_temp(self, P, T, color='red', marker='o', label='', with_height_markers=[], marker_interval=None):
         """
         Input sounding defined by P and T
 
@@ -102,9 +104,24 @@ class Tephigram:
 
         x, y = self._tf(T, theta-273.15)
 
-        self.ax1.plot(*self._tf(T, theta-273.15), marker='o', color=color)
+        plot = self.ax1.plot(*self._tf(T, theta-273.15), marker=marker, color=color, label=label)
 
-        return x, y
+        if len(with_height_markers) != 0:
+            if len(with_height_markers) != len(x):
+                raise Exception("The array of height markers must have the same number of points as the pressure and temperature profiles")
+            else:
+                z = with_height_markers
+                n_skip = np.count_nonzero(z < z.min() + marker_interval)
+                for z_, x_, y_ in zip(with_height_markers, x, y)[::n_skip]:
+                    t = 'z=%skm' % float('%.2g' % (float(z_)/1e3))
+                    self.fig.gca().annotate(t,
+                            xy = (x_, y_), xytext = (-65, 0),
+                            textcoords = 'offset points', ha = 'right', va = 'bottom',
+                            bbox = dict(boxstyle = 'round,pad=0.5', fc = 'white', alpha = 0.8),
+                            arrowprops = dict(arrowstyle = '->', connectionstyle = 'arc3,rad=0'))
+
+
+        return plot
 
     def plot_RH(self, P, T, RH, color='green'):
         """
@@ -143,17 +160,17 @@ class Tephigram:
         corners = np.array([[-25., -20.], [30., 40.], [-40., 120.], [-105., 60.]])
         corners_t = self._tf(corners[:,0], corners[:,1])
 
-        ax1.set_aspect(1.)
+        # ax1.set_aspect(1.)
         ax1.set_xlim(x_min, x_max)
-        ax1.set_ylim(y_min, y_max)
+        ax1.set_ylim(*self.y_range)
         ax1.set_xlabel('Temperature [C]')
 
         #ax1.axis["t"]=ax1.new_floating_axis(0, 0.)
         #T_axis = ax1.axis['t']
         #theta_axis = ax1.axis["t2"]=ax1.new_floating_axis(1, 0.)
         
-        plot.draw()
-        plot.show()
+        # plot.draw()
+        # plot.show()
         self.ax1 = ax1
 
     def _tf(self, T, theta):
@@ -191,7 +208,8 @@ class Tephigram:
                 x0 = 1 + x[k]
             y0 = y[k]
 
-            plot.text(x0, y0, '%dhPa' % P, color='blue')
+            if self.plot_annotations:
+                plot.text(x0, y0, '%dhPa' % P, color='blue')
 
     def f_theta(self, P, T):
         return T*(P/P_max)**-0.286
@@ -214,13 +232,14 @@ class Tephigram:
 
             self.ax1.plot(x, y, linestyle='--', color='purple')
 
-            k = np.argmin((y>y_min)*y)
+            k = np.argmin((y>self.y_range[0])*y)
 
             x0 = x[k] 
             y0 = y[k] + 1.
 
-            bbox = dict(facecolor='white', edgecolor='white', alpha=0.7)
-            plot.text(x0, y0, "%g" % (qs*1000.), color='purple', bbox=bbox)
+            if self.plot_annotations:
+                bbox = dict(facecolor='white', edgecolor='white', alpha=0.7)
+                plot.text(x0, y0, "%g" % (qs*1000.), color='purple', bbox=bbox)
 
     def plot_sat_adiabats(self):
         """
@@ -266,7 +285,7 @@ class Tephigram:
             k = np.argmin(np.abs(np.array(P_arr)-1000.))
             T_at_1000 = T[k]
 
-            kk = np.argmin((x>x_min)*x - (y<y_max)*y)
+            kk = np.argmin((x>x_min)*x - (y<self.y_range[1])*y)
 
             x0 = x[kk] + 1.
             y0 = y[kk] - 2.
