@@ -57,9 +57,8 @@ x_max = 60.0
 T_ = np.arange(T_min, T_max+0.1, d_T)
 
 class Tephigram:
-    def __init__(self, fig=None, subplotshape=None, y_range=(-10, 120)):
+    def __init__(self, fig=None, subplotshape=None, y_range=(-10, 120), with_labels=True):
         self.y_range = y_range
-        self.plot_annotations = False
 
         if fig is None:
             fig = plot.figure(figsize=(10,10))
@@ -68,12 +67,19 @@ class Tephigram:
         self.plot = plot
         self.lines = []
 
+        self.with_labels = with_labels
+
+        self.plot_sat_adiabat_labels = self.with_labels
+        self.plot_annotations = self.with_labels
+
 
         self.plot_temp_lines()
         self.plot_pot_temp_lines()
         self.plot_pressure_lines()
         self.plot_qs_lines()
         self.plot_sat_adiabats()
+
+        self.ax1.set_yticklabels([])
 
 
     def savefig(self, filename):
@@ -115,7 +121,7 @@ class Tephigram:
                 for z_, x_, y_ in zip(with_height_markers, x, y)[::n_skip]:
                     t = 'z=%skm' % float('%.2g' % (float(z_)/1e3))
                     self.fig.gca().annotate(t,
-                            xy = (x_, y_), xytext = (-65, 0),
+                            xy = (x_, y_), xytext = (100, 0),
                             textcoords = 'offset points', ha = 'right', va = 'bottom',
                             bbox = dict(boxstyle = 'round,pad=0.5', fc = 'white', alpha = 0.8),
                             arrowprops = dict(arrowstyle = '->', connectionstyle = 'arc3,rad=0'))
@@ -208,7 +214,7 @@ class Tephigram:
                 x0 = 1 + x[k]
             y0 = y[k]
 
-            if self.plot_annotations:
+            if self.plot_annotations and y0 < self.y_range[1]:
                 plot.text(x0, y0, '%dhPa' % P, color='blue')
 
     def f_theta(self, P, T):
@@ -237,7 +243,7 @@ class Tephigram:
             x0 = x[k] 
             y0 = y[k] + 1.
 
-            if self.plot_annotations:
+            if self.plot_annotations and x0 > x_min:
                 bbox = dict(facecolor='white', edgecolor='white', alpha=0.7)
                 plot.text(x0, y0, "%g" % (qs*1000.), color='purple', bbox=bbox)
 
@@ -290,7 +296,7 @@ class Tephigram:
             x0 = x[kk] + 1.
             y0 = y[kk] - 2.
 
-            if plot_sat_adiabat_labels:
+            if x[kk] > x_min and self.plot_sat_adiabat_labels:
                 self.ax1.text(x0, y0, "%gC" % T_at_1000, color='black')
 
         self.lines += line
