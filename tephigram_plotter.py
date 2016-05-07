@@ -136,7 +136,7 @@ class Tephigram:
         T_dp = 243.04*(np.log(RH)+((17.625*T)/(243.04+T)))/(17.625-np.log(RH)-((17.625*T)/(243.04+T)))
 
         theta = self.f_theta(P=P, T=(T_dp+273.15))
-        self.ax1.plot(*self._tf(T_dp, theta-273.15), marker='o', color='green')
+        return self.ax1.plot(*self._tf(T_dp, theta-273.15), marker='o', color='green')
 
     def setup_axes1(self, fig, subplotshape=None):
         """
