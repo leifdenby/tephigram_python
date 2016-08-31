@@ -51,14 +51,14 @@ T_min, T_max,d_T = -100., 40., 10.
 P_min, P_max, d_P = 200., 1000., 100.
 qs_ = 1.e-3*np.array([30., 20., 15., 10., 7., 5., 3., 2., 15., 1.0, 0.7,])
 
-x_min = -20
-x_max = 60.0
-
 T_ = np.arange(T_min, T_max+0.1, d_T)
 
 class Tephigram:
-    def __init__(self, fig=None, subplotshape=None, y_range=(-10, 120), with_labels=True):
+    def __init__(self, fig=None, subplotshape=None, y_range=(-10, 120), x_range=(-20, 60), with_labels=True, height_function=None):
         self.y_range = y_range
+        self.x_range = x_range
+
+        self.height_function = height_function
 
         if fig is None:
             fig = plot.figure(figsize=(10,10))
@@ -75,7 +75,7 @@ class Tephigram:
 
         self.plot_temp_lines()
         self.plot_pot_temp_lines()
-        self.plot_pressure_lines()
+        self._plot_pressure_lines()
         self.plot_qs_lines()
         self.plot_sat_adiabats()
 
@@ -167,6 +167,7 @@ class Tephigram:
         corners_t = self._tf(corners[:,0], corners[:,1])
 
         # ax1.set_aspect(1.)
+        x_min, x_max = self.x_range
         ax1.set_xlim(x_min, x_max)
         ax1.set_ylim(*self.y_range)
         ax1.set_xlabel('Temperature [C]')
@@ -196,26 +197,38 @@ class Tephigram:
 
         self.lines += line
 
-    def plot_pressure_lines(self):
+    def _plot_pressure_lines(self):
         """
         theta = T*(1000/p)^0.286
         """
-        x0 = None
         for P in np.arange(P_min, P_max+0.1, d_P):
-            T__ = np.linspace(T_min, T_max, 1000.)
-            theta_constP = -273.15 + self.f_theta(P, T__+273.15)
+            self.plot_pressure_line(P=P, include_label=self.plot_annotations)
 
-            x, y = self._tf(T__, theta_constP)
-            self.ax1.plot(x, y, linestyle=':', color='blue')
+    def plot_pressure_line(self, P, include_label=False):
+        """
+        plot line at pressure `P` (in hPa)
+        """
+        x0 = None
+        T__ = np.linspace(T_min, T_max, 1000.)
+        theta_constP = -273.15 + self.f_theta(P, T__+273.15)
 
-            k = np.argmax((x<x_max)*x)
+        x, y = self._tf(T__, theta_constP)
+        line, = self.ax1.plot(x, y, linestyle=':', color='blue')
 
-            if x0 is None:
-                x0 = 1 + x[k]
-            y0 = y[k]
+        x_min, x_max = self.x_range
+        k = np.argmax((x<x_max)*x)
 
-            if self.plot_annotations and y0 < self.y_range[1]:
-                plot.text(x0, y0, '%dhPa' % P, color='blue')
+        if x0 is None:
+            x0 = 0.5 + x[k]
+        y0 = y[k]
+
+        if include_label and y0 < self.y_range[1]:
+            label = '%dhPa' % P
+            if self.height_function is not None:
+                label += '\n({:.1f}km)'.format(self.height_function(P*100.)/1000.)
+            plot.text(x0, y0, label , color='blue')
+
+        return line, (x, y)
 
     def f_theta(self, P, T):
         return T*(P/P_max)**-0.286
@@ -243,6 +256,7 @@ class Tephigram:
             x0 = x[k] 
             y0 = y[k] + 1.
 
+            x_min, x_max = self.x_range
             if self.plot_annotations and x0 > x_min:
                 bbox = dict(facecolor='white', edgecolor='white', alpha=0.7)
                 plot.text(x0, y0, "%g" % (qs*1000.), color='purple', bbox=bbox)
@@ -252,9 +266,11 @@ class Tephigram:
         Use dtheta = -L*theta/(Cp*T) dqs and integrate from T=-40 C
         """
         def f_dtheta_dq(theta, T):
-            L = 2257*1.e3 # J/kg
+            L = 2500.08*1.e3 # J/kg
             Cp = 1.004*1.e3 # J/kg/K
             return -L*theta/(Cp*T)
+
+        x_min, x_max = self.x_range
 
         for theta0 in np.arange(theta_min, theta_max, d_theta):
             T0 = T_min
