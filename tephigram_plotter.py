@@ -49,12 +49,10 @@ rotation_origin = [T1, theta1]
 theta_min, theta_max, d_theta = -20., 110., 10.
 T_min, T_max,d_T = -100., 40., 10.
 P_min, P_max, d_P = 200., 1000., 100.
-qs_ = 1.e-3*np.array([30., 20., 15., 10., 7., 5., 3., 2., 15., 1.0, 0.7,])
-
-T_ = np.arange(T_min, T_max+0.1, d_T)
+qs_DEFAULT = 1.e-3*np.array([30., 20., 15., 10., 7., 5., 3., 2., 15., 1.0, 0.7,])
 
 class Tephigram:
-    def __init__(self, fig=None, subplotshape=None, y_range=(-10, 120), x_range=(-20, 60), with_labels=True, height_function=None):
+    def __init__(self, fig=None, subplotshape=None, plot_default_lines=True, y_range=(-10, 120), x_range=(-20, 60), with_labels=True, height_function=None):
         self.y_range = y_range
         self.x_range = x_range
 
@@ -72,12 +70,12 @@ class Tephigram:
         self.plot_sat_adiabat_labels = self.with_labels
         self.plot_annotations = self.with_labels
 
-
-        self.plot_temp_lines()
-        self.plot_pot_temp_lines()
-        self._plot_pressure_lines()
-        self.plot_qs_lines()
-        self.plot_sat_adiabats()
+        if plot_default_lines:
+            self.plot_temp_lines()
+            self.plot_pot_temp_lines()
+            self.plot_pressure_lines()
+            self.plot_qs_lines()
+            self.plot_sat_adiabats()
 
         self.ax1.set_yticklabels([])
 
@@ -187,24 +185,32 @@ class Tephigram:
         return self.tr.transform(np.array([T, theta]).T).T
 
     def plot_temp_lines(self):
+        T_ = np.arange(T_min, T_max+0.1, d_T)
+        lines = []
         for T in T_:
-            self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle=':', color='red')
+            lines += self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle=':', color='red', label='const. temp')
+        return lines
 
     def plot_pot_temp_lines(self):
         theta_ = np.arange(theta_min, theta_max, d_theta)
+
+        lines = []
         for theta in theta_:
-            line = self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle=':', color='green', label='dry adiabat')
+            lines += self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle=':', color='green', label='dry adiabat')
 
-        self.lines += line
+        return lines
 
-    def _plot_pressure_lines(self):
+    def plot_pressure_lines(self):
         """
         theta = T*(1000/p)^0.286
         """
+        lines = []
         for P in np.arange(P_min, P_max+0.1, d_P):
-            self.plot_pressure_line(P=P, include_label=self.plot_annotations)
+            lines += self.plot_pressure_line(P=P, include_label=self.plot_annotations)
 
-    def plot_pressure_line(self, P, include_label=False):
+        return lines
+
+    def plot_pressure_line(self, P, label_format='{p:d}hPa\n({z:.1f}km)', label_inside=False):
         """
         plot line at pressure `P` (in hPa)
         """
@@ -213,33 +219,40 @@ class Tephigram:
         theta_constP = -273.15 + self.f_theta(P, T__+273.15)
 
         x, y = self._tf(T__, theta_constP)
-        line, = self.ax1.plot(x, y, linestyle=':', color='blue')
+        lines = self.ax1.plot(x, y, linestyle=':', color='blue')
 
-        x_min, x_max = self.x_range
+        xlim = plot.gca().get_xlim()
+        x_min, x_max = xlim
+        lx = x_max - x_min
         k = np.argmax((x<x_max)*x)
 
         if x0 is None:
             x0 = 0.5 + x[k]
         y0 = y[k]
 
-        if include_label and y0 < self.y_range[1]:
-            label = '%dhPa' % P
+        if label_format is not None and y0 < self.y_range[1]:
             if self.height_function is not None:
-                label += '\n({:.1f}km)'.format(self.height_function(P*100.)/1000.)
-            plot.text(x0, y0, label , color='blue')
+                label = label_format.format(z=self.height_function(P*100.), p=P)
+            else:
+                label = label_format.format(z=np.nan, p=P)
 
-        return line, (x, y)
+            if label_inside:
+                plot.text(x_max - 0.02*lx, y0, label , color='blue', horizontalalignment='right')
+            else:
+                plot.text(x0, y0, label , color='blue')
+
+        return lines
 
     def f_theta(self, P, T):
         return T*(P/P_max)**-0.286
 
-    def plot_qs_lines(self):
+    def plot_qs_lines(self, qs_=qs_DEFAULT, include_labels=False):
         """
         Make the saturated specific humidity curves
           q_s = 0.622*e_s/p
         """
 
-        T_ = np.linspace(T_min, T_max, 1000)
+        T_ = np.linspace(T_min, T_max, 5000)
 
         for qs in qs_:
             Tk = T_ + 273.15
@@ -249,17 +262,20 @@ class Tephigram:
 
             x, y = self._tf(T_, theta)
 
-            self.ax1.plot(x, y, linestyle='--', color='purple')
+            lines = self.ax1.plot(x, y, linestyle='--', color='purple', label=r'$q_{sat}$ const.')
 
-            k = np.argmin((y>self.y_range[0])*y)
+            x_min, x_max = plot.gca().get_xlim()
+            y_min, y_max = plot.gca().get_ylim()
+            k = np.argmin((y>y_min)*y)
 
             x0 = x[k] 
-            y0 = y[k] + 1.
+            y0 = y[k] + 0.3
 
-            x_min, x_max = self.x_range
-            if self.plot_annotations and x0 > x_min:
-                bbox = dict(facecolor='white', edgecolor='white', alpha=0.7)
+            if include_labels and x0 > x_min:
+                bbox = dict(facecolor='white', edgecolor='white', alpha=0.5)
                 plot.text(x0, y0, "%g" % (qs*1000.), color='purple', bbox=bbox)
+
+        return lines
 
     def plot_sat_adiabats(self):
         """
@@ -302,7 +318,7 @@ class Tephigram:
             theta_const_qs = np.array(theta_const_qs_K) - 273.15
             
             x, y = self._tf(T, theta_const_qs)
-            line = self.ax1.plot(x, y, linestyle='-.', color='black', label='moist adiabat')
+            lines = self.ax1.plot(x, y, linestyle='-.', color='black', label='moist adiabat')
 
             k = np.argmin(np.abs(np.array(P_arr)-1000.))
             T_at_1000 = T[k]
@@ -315,7 +331,8 @@ class Tephigram:
             if x[kk] > x_min and self.plot_sat_adiabat_labels:
                 self.ax1.text(x0, y0, "%gC" % T_at_1000, color='black')
 
-        self.lines += line
+        self.lines += lines
+        return lines
 
     def plot_legend(self):
         labels = [l.get_label() for l in self.lines]
