@@ -49,10 +49,12 @@ rotation_origin = [T1, theta1]
 theta_min, theta_max, d_theta = -20., 110., 10.
 T_min, T_max,d_T = -100., 40., 10.
 P_min, P_max, d_P = 200., 1000., 100.
-qs_DEFAULT = 1.e-3*np.array([30., 20., 15., 10., 7., 5., 3., 2., 15., 1.0, 0.7,])
+qs_DEFAULT = 1.e-3*np.array([30., 20., 15., 10., 7., 5., 3., 2., 1.0, 0.7,])
+
+T_ticks_DEFAULT = np.arange(T_min, T_max, d_T)
 
 class Tephigram:
-    def __init__(self, fig=None, subplotshape=None, plot_default_lines=True, y_range=(-10, 120), x_range=(-20, 60), with_labels=True, height_function=None):
+    def __init__(self, fig=None, subplotshape=None, plot_default_lines=True, y_range=(-10, 120), x_range=(-20, 60), with_labels=True, height_function=None, T_ticks=T_ticks_DEFAULT):
         self.y_range = y_range
         self.x_range = x_range
 
@@ -61,7 +63,7 @@ class Tephigram:
         if fig is None:
             fig = plot.figure(figsize=(10,10))
         self.fig = fig
-        self.setup_axes1(fig, subplotshape)
+        self.setup_axes1(fig=fig, subplotshape=subplotshape, T_ticks=T_ticks)
         self.plot = plot
         self.lines = []
 
@@ -70,12 +72,13 @@ class Tephigram:
         self.plot_sat_adiabat_labels = self.with_labels
         self.plot_annotations = self.with_labels
 
+        self.plotted_lines = []
         if plot_default_lines:
-            self.plot_temp_lines()
-            self.plot_pot_temp_lines()
-            self.plot_pressure_lines()
-            self.plot_qs_lines()
-            self.plot_sat_adiabats()
+            self.plotted_lines += self.plot_temp_lines()
+            self.plotted_lines += self.plot_pot_temp_lines()
+            self.plotted_lines += self.plot_pressure_lines()
+            self.plotted_lines += self.plot_qs_lines()
+            self.plotted_lines += self.plot_sat_adiabats()
 
         self.ax1.set_yticklabels([])
 
@@ -136,14 +139,13 @@ class Tephigram:
         theta = self.f_theta(P=P, T=(T_dp+273.15))
         return self.ax1.plot(*self._tf(T_dp, theta-273.15), marker='o', color='green')
 
-    def setup_axes1(self, fig, subplotshape=None):
+    def setup_axes1(self, fig, T_ticks, subplotshape=None):
         """
         A simple one.
         """
         deg = -45.
         self.tr = Affine2D().rotate_deg(deg)
 
-        T_ticks = np.arange(T_min, T_max, d_T)
         theta_ticks = [] #np.arange(theta_min, theta_max, d_T)
 
         grid_helper = GridHelperCurveLinear(self.tr, grid_locator1=FixedLocator(T_ticks), grid_locator2=FixedLocator(theta_ticks))
@@ -184,33 +186,38 @@ class Tephigram:
         """
         return self.tr.transform(np.array([T, theta]).T).T
 
-    def plot_temp_lines(self):
+    def plot_temp_lines(self, **kwargs):
         T_ = np.arange(T_min, T_max+0.1, d_T)
         lines = []
         for T in T_:
-            lines += self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle=':', color='red', label='const. temp')
+            lines += self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle=':', color='red', label='const. temp', **kwargs)
         return lines
 
-    def plot_pot_temp_lines(self):
+    def plot_pot_temp_lines(self, **kwargs):
         theta_ = np.arange(theta_min, theta_max, d_theta)
 
         lines = []
         for theta in theta_:
-            lines += self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle=':', color='green', label='dry adiabat')
+            lines += self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle=':', color='green', label='dry adiabat', **kwargs)
 
         return lines
 
-    def plot_pressure_lines(self):
+    def plot_pressure_lines(self, p=[], **kwargs):
         """
         theta = T*(1000/p)^0.286
         """
+        if len(p) == 0:
+            P_ = np.arange(P_min, P_max+0.1, d_P)
+        else:
+            P_ = np.array(p)/100.
+
         lines = []
-        for P in np.arange(P_min, P_max+0.1, d_P):
-            lines += self.plot_pressure_line(P=P, include_label=self.plot_annotations)
+        for P in P_:
+            lines += self.plot_pressure_line(P=P, **kwargs)
 
         return lines
 
-    def plot_pressure_line(self, P, label_format='{p:d}hPa\n({z:.1f}km)', label_inside=False):
+    def plot_pressure_line(self, P, label_format='{p:.0f}hPa\n({z:.1f}km)', label_inside=False, label_fontsize=12, **kwargs):
         """
         plot line at pressure `P` (in hPa)
         """
@@ -219,7 +226,7 @@ class Tephigram:
         theta_constP = -273.15 + self.f_theta(P, T__+273.15)
 
         x, y = self._tf(T__, theta_constP)
-        lines = self.ax1.plot(x, y, linestyle=':', color='blue')
+        lines = self.ax1.plot(x, y, linestyle=':', color='blue', **kwargs)
 
         xlim = plot.gca().get_xlim()
         x_min, x_max = xlim
@@ -232,21 +239,21 @@ class Tephigram:
 
         if label_format is not None and y0 < self.y_range[1]:
             if self.height_function is not None:
-                label = label_format.format(z=self.height_function(P*100.), p=P)
+                label = label_format.format(z=float(self.height_function(P*100.)), p=P)
             else:
                 label = label_format.format(z=np.nan, p=P)
 
             if label_inside:
-                plot.text(x_max - 0.02*lx, y0, label , color='blue', horizontalalignment='right')
+                plot.text(x_max - 0.02*lx, y0, label , color='blue', horizontalalignment='right', size=label_fontsize)
             else:
-                plot.text(x0, y0, label , color='blue')
+                plot.text(x0, y0, label , color='blue', size=label_fontsize)
 
         return lines
 
     def f_theta(self, P, T):
         return T*(P/P_max)**-0.286
 
-    def plot_qs_lines(self, qs_=qs_DEFAULT, include_labels=False):
+    def plot_qs_lines(self, qs_=qs_DEFAULT, include_labels=False, **kwargs):
         """
         Make the saturated specific humidity curves
           q_s = 0.622*e_s/p
@@ -262,7 +269,7 @@ class Tephigram:
 
             x, y = self._tf(T_, theta)
 
-            lines = self.ax1.plot(x, y, linestyle='--', color='purple', label=r'$q_{sat}$ const.')
+            lines = self.ax1.plot(x, y, linestyle='--', color='purple', label=r'$q_{sat}$ const.', **kwargs)
 
             x_min, x_max = plot.gca().get_xlim()
             y_min, y_max = plot.gca().get_ylim()
@@ -277,7 +284,7 @@ class Tephigram:
 
         return lines
 
-    def plot_sat_adiabats(self):
+    def plot_sat_adiabats(self, include_labels=True, **kwargs):
         """
         Use dtheta = -L*theta/(Cp*T) dqs and integrate from T=-40 C
         """
@@ -318,7 +325,7 @@ class Tephigram:
             theta_const_qs = np.array(theta_const_qs_K) - 273.15
             
             x, y = self._tf(T, theta_const_qs)
-            lines = self.ax1.plot(x, y, linestyle='-.', color='black', label='moist adiabat')
+            lines = self.ax1.plot(x, y, linestyle='-.', color='black', label='moist adiabat', **kwargs)
 
             k = np.argmin(np.abs(np.array(P_arr)-1000.))
             T_at_1000 = T[k]
@@ -328,7 +335,7 @@ class Tephigram:
             x0 = x[kk] + 1.
             y0 = y[kk] - 2.
 
-            if x[kk] > x_min and self.plot_sat_adiabat_labels:
+            if include_labels and x[kk] > x_min:
                 self.ax1.text(x0, y0, "%gC" % T_at_1000, color='black')
 
         self.lines += lines
