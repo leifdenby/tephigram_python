@@ -4,15 +4,12 @@ import math
 
 from matplotlib.transforms import Affine2D
 
-import mpl_toolkits.axisartist.floating_axes as floating_axes
-
-import numpy as np
-import  mpl_toolkits.axisartist.angle_helper as angle_helper
+import mpl_toolkits.axisartist.angle_helper as angle_helper
 from matplotlib.projections import PolarAxes
 from mpl_toolkits.axisartist.grid_finder import FixedLocator, MaxNLocator, \
      DictFormatter
 
-from  mpl_toolkits.axisartist.grid_helper_curvelinear import GridHelperCurveLinear
+from mpl_toolkits.axisartist.grid_helper_curvelinear import GridHelperCurveLinear
 from mpl_toolkits.axisartist import Subplot
 
 
@@ -320,29 +317,3 @@ class Tephigram:
     def plot_legend(self):
         labels = [l.get_label() for l in self.lines]
         plot.legend(self.lines, labels, loc='upper left', prop={'size': 10})
-        
-
-if __name__ == "__main__":
-    tephigram = Tephigram()
-
-    sounding = np.loadtxt('sounding_example.dat', unpack=True)
-    P = sounding[0]
-    T = sounding[2]
-    T_dp = sounding[3]
-
-    tephigram.plot_sounding(P=P, T=T, T_dp=T_dp)
-
-    RH = sounding[4]
-    T_dp2 = 243.04*(np.log(RH/100)+((17.625*T)/(243.04+T)))/(17.625-np.log(RH/100)-((17.625*T)/(243.04+T)))
-    tephigram.plot_sounding(P=P, T=T, T_dp=T_dp2)
-
-    tephigram.savefig('tephigram_example.png')
-
-
-    plot.figure()
-    z = sounding[1]
-
-    plot.plot(T_dp2, z, label='calc')
-    plot.plot(T_dp, z)
-    plot.legend()
-    raw_input()
