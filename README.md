@@ -6,7 +6,7 @@ matplotlib and numpy.
 
 ## Usage
 ```
-from tephigram import Tephigram
+from tephigram_python import Tephigram
 
 tephigram = Tephigram()
 
@@ -16,11 +16,15 @@ T = sounding[2]
 T_dp = sounding[3]
 
 tephigram.plot_sounding(P=P, T=T, T_dp=T_dp)
+tephigram.plot_legend()
 
 tephigram.savefig('tephigram_example.png')
 ```
 
+
 ![Tephigram example](tephigram_example.png)
+
+Other useful methods of `Tephigram` include `plot_temp` and `plot_RH`.
 
 ## TODO
 - calculation and plotting of:
@@ -28,8 +32,7 @@ tephigram.savefig('tephigram_example.png')
     - FLC: Free Convection Level
     - CAPE: Convectively Available Potential Energy
     - EL: Equilibrium Level
-- plotting of sounding from profile of temperature, relative humidity and
-  height.
+- add to pyp and add pip instructions
 
 ## Sources of inspiration
 

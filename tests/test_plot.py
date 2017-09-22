@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use("Svg")
+
 import numpy as np
 import matplotlib.pyplot as plot
 
@@ -12,7 +15,7 @@ def test_plot_dewpoint_temp():
     T_dp = sounding[3]
 
     tephigram.plot_sounding(P=P, T=T, T_dp=T_dp)
-    # tephigram.savefig('tephigram_example_dewpoint_temp.png')
+    tephigram.savefig('tephigram_example_dewpoint_temp.png')
 
 
 def test_plot_rh():
@@ -21,9 +24,25 @@ def test_plot_rh():
     sounding = np.loadtxt('examples/sounding_example.dat', unpack=True)
     P = sounding[0]
     T = sounding[2]
-    RH = sounding[4]
+    RH = sounding[4]/100.
 
     tephigram.plot_temp(P=P, T=T)
     tephigram.plot_RH(P=P, T=T, RH=RH)
 
-    # tephigram.savefig('tephigram_example_rh.png')
+    tephigram.savefig('tephigram_example_rh.png')
+
+def test_plot_legend():
+    tephigram = Tephigram()
+
+    sounding = np.loadtxt('examples/sounding_example.dat', unpack=True)
+    P = sounding[0]
+    T = sounding[2]
+    RH = sounding[4]/100.
+
+    lines = []
+    lines += tephigram.plot_temp(P=P, T=T)
+    lines += tephigram.plot_RH(P=P, T=T, RH=RH)
+
+    tephigram.plot_legend(lines)
+
+    tephigram.savefig('tephigram_example_legend.pdf')

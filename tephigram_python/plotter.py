@@ -4,8 +4,8 @@ import math
 
 from matplotlib.transforms import Affine2D
 
-import mpl_toolkits.axisartist.angle_helper as angle_helper
-from matplotlib.projections import PolarAxes
+# import mpl_toolkits.axisartist.angle_helper as angle_helper
+# from matplotlib.projections import PolarAxes
 from mpl_toolkits.axisartist.grid_finder import FixedLocator, MaxNLocator, \
      DictFormatter
 
@@ -58,11 +58,11 @@ class Tephigram:
         self.height_function = height_function
 
         if fig is None:
-            fig = plot.figure(figsize=(10,10))
+            fig = plot.figure(figsize=(8,10))
         self.fig = fig
         self.setup_axes1(fig, subplotshape)
         self.plot = plot
-        self.lines = []
+        self.lines = {}
 
         self.with_labels = with_labels
 
@@ -78,6 +78,10 @@ class Tephigram:
 
         self.ax1.set_yticklabels([])
 
+    def _save_lines(self, line_type, lines):
+        if not line_type in self.lines:
+            self.lines[line_type] = []
+        self.lines[line_type] += lines
 
     def savefig(self, filename):
         self.fig.savefig(filename)
@@ -89,14 +93,12 @@ class Tephigram:
         Expected units:
             T [C], P [hPa], T_dp [C]
         """
-        theta = self.f_theta(P=P, T=(T+273.15))
+        lines = self.plot_temp(P=P, T=T)
 
-        self.ax1.plot(*self._tf(T, theta-273.15), marker='o', color='red')
+        lines = self.plot_temp(P=P, T=T_dp, temp_type="moisture", label="moisture", marker='o', color='green')
+        self._save_lines('moisture', lines)
 
-        theta = self.f_theta(P=P, T=(T_dp+273.15))
-        self.ax1.plot(*self._tf(T_dp, theta-273.15), marker='o', color='green')
-
-    def plot_temp(self, P, T, color='red', marker='o', label='', with_height_markers=[], marker_interval=None):
+    def plot_temp(self, P, T, color='red', marker='o', label='temperature', with_height_markers=[], marker_interval=None, temp_type="temp"):
         """
         Input sounding defined by P and T
 
@@ -107,7 +109,7 @@ class Tephigram:
 
         x, y = self._tf(T, theta-273.15)
 
-        plot = self.ax1.plot(*self._tf(T, theta-273.15), marker=marker, color=color, label=label)
+        lines = self.ax1.plot(*self._tf(T, theta-273.15), marker=marker, color=color, label=label)
 
         if len(with_height_markers) != 0:
             if len(with_height_markers) != len(x):
@@ -123,17 +125,24 @@ class Tephigram:
                             bbox = dict(boxstyle = 'round,pad=0.5', fc = 'white', alpha = 0.8),
                             arrowprops = dict(arrowstyle = '->', connectionstyle = 'arc3,rad=0'))
 
+        self._save_lines(temp_type, lines)
 
-        return plot
+        return lines
 
-    def plot_RH(self, P, T, RH, color='green'):
+    def plot_RH(self, P, T, RH, color='green', label='moisture', **kwargs):
         """
         dew-point equation source: http://andrew.rsmas.miami.edu/bmcnoldy/Humidity.html
         """
         T_dp = 243.04*(np.log(RH)+((17.625*T)/(243.04+T)))/(17.625-np.log(RH)-((17.625*T)/(243.04+T)))
 
         theta = self.f_theta(P=P, T=(T_dp+273.15))
-        return self.ax1.plot(*self._tf(T_dp, theta-273.15), marker='o', color='green')
+
+        lines = self.ax1.plot(*self._tf(T_dp, theta-273.15), marker='o', color='green', label='moisture', **kwargs)
+
+        self._save_lines('moisture', lines)
+
+        return lines
+
 
     def setup_axes1(self, fig, subplotshape=None):
         """
@@ -169,6 +178,8 @@ class Tephigram:
         ax1.set_ylim(*self.y_range)
         ax1.set_xlabel('Temperature [C]')
 
+        ax1.set_aspect(1)
+
         #ax1.axis["t"]=ax1.new_floating_axis(0, 0.)
         #T_axis = ax1.axis['t']
         #theta_axis = ax1.axis["t2"]=ax1.new_floating_axis(1, 0.)
@@ -184,15 +195,21 @@ class Tephigram:
         return self.tr.transform(np.array([T, theta]).T).T
 
     def plot_temp_lines(self):
+        lines = []
         for T in T_:
-            self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle=':', color='red')
+            lines += self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle=':', color='red', label='const. temp.')
+        self._save_lines('temp_ref', lines)
+
+        return lines
 
     def plot_pot_temp_lines(self):
         theta_ = np.arange(theta_min, theta_max, d_theta)
+        lines = []
         for theta in theta_:
-            line = self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle=':', color='green', label='dry adiabat')
+            lines += self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle=':', color='green', label='dry adiabat')
 
-        self.lines += line
+        self._save_lines('pot_temp_ref', lines)
+        return lines
 
     def _plot_pressure_lines(self):
         """
@@ -210,7 +227,7 @@ class Tephigram:
         theta_constP = -273.15 + self.f_theta(P, T__+273.15)
 
         x, y = self._tf(T__, theta_constP)
-        line, = self.ax1.plot(x, y, linestyle=':', color='blue')
+        lines = self.ax1.plot(x, y, linestyle=':', color='blue')
 
         x_min, x_max = self.x_range
         k = np.argmax((x<x_max)*x)
@@ -225,7 +242,9 @@ class Tephigram:
                 label += '\n({:.1f}km)'.format(self.height_function(P*100.)/1000.)
             plot.text(x0, y0, label , color='blue')
 
-        return line, (x, y)
+        self._save_lines('p', lines)
+
+        return lines[0], (x, y)
 
     def f_theta(self, P, T):
         return T*(P/P_max)**-0.286
@@ -238,6 +257,7 @@ class Tephigram:
 
         T_ = np.linspace(T_min, T_max, 1000)
 
+        lines = []
         for qs in qs_:
             Tk = T_ + 273.15
             Pqs = 0.622*esat(Tk)/qs
@@ -246,7 +266,7 @@ class Tephigram:
 
             x, y = self._tf(T_, theta)
 
-            self.ax1.plot(x, y, linestyle='--', color='purple')
+            lines += self.ax1.plot(x, y, linestyle='--', color='purple', label=r"$q_{sat}$ const.")
 
             k = np.argmin((y>self.y_range[0])*y)
 
@@ -257,6 +277,9 @@ class Tephigram:
             if self.plot_annotations and x0 > x_min:
                 bbox = dict(facecolor='white', edgecolor='white', alpha=0.7)
                 plot.text(x0, y0, "%g" % (qs*1000.), color='purple', bbox=bbox)
+
+        self._save_lines('qs_ref', lines)
+        return lines
 
     def plot_sat_adiabats(self):
         """
@@ -269,6 +292,7 @@ class Tephigram:
 
         x_min, x_max = self.x_range
 
+        lines = []
         for theta0 in np.arange(theta_min, theta_max, d_theta):
             T0 = T_min
 
@@ -299,7 +323,7 @@ class Tephigram:
             theta_const_qs = np.array(theta_const_qs_K) - 273.15
             
             x, y = self._tf(T, theta_const_qs)
-            line = self.ax1.plot(x, y, linestyle='-.', color='black', label='moist adiabat')
+            lines += self.ax1.plot(x, y, linestyle='-.', color='black', label='moist adiabat')
 
             k = np.argmin(np.abs(np.array(P_arr)-1000.))
             T_at_1000 = T[k]
@@ -312,8 +336,23 @@ class Tephigram:
             if x[kk] > x_min and self.plot_sat_adiabat_labels:
                 self.ax1.text(x0, y0, "%gC" % T_at_1000, color='black')
 
-        self.lines += line
+        self._save_lines('sat_adiabat_ref', lines)
 
-    def plot_legend(self):
-        labels = [l.get_label() for l in self.lines]
-        plot.legend(self.lines, labels, loc='upper left', prop={'size': 10})
+        return lines
+
+    def plot_legend(self, lines=[], include_ref_lines=True, ncol=3):
+        if len(lines) == 0:
+            LINES_NAMES = ['temp', 'moisture']
+            lines = [self.lines[ln][0] for ln in LINES_NAMES if ln in self.lines]
+
+        if include_ref_lines:
+            LINES_NAMES = ['sat_adiabat_ref', 'qs_ref', 'pot_temp_ref', 'temp_ref']
+            lines += [self.lines[ln][0] for ln in LINES_NAMES if ln in self.lines]
+
+        # labels = [l.get_label() for l in self.lines]
+        # plot.legend(self.lines, labels, loc='upper left', prop={'size': 10})
+
+        plot.tight_layout()
+        plot.subplots_adjust(bottom=0.17)
+
+        plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', frameon=False, ncol=ncol)
