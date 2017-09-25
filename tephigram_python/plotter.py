@@ -59,7 +59,7 @@ class Tephigram:
         self.height_function = height_function
 
         if fig is None:
-            fig = plot.figure(figsize=(8,10))
+            fig = plot.figure(figsize=(7,10))
         self.fig = fig
         self.setup_axes1(fig=fig, subplotshape=subplotshape, T_ticks=T_ticks)
         self.plot = plot
