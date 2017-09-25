@@ -272,7 +272,7 @@ class Tephigram:
     def f_theta(self, P, T):
         return T*(P/P_max)**-0.286
 
-    def plot_qs_lines(self, qs_=qs_DEFAULT, include_labels=False, alpha=REF_LINES_ALPHA, **kwargs):
+    def plot_qs_lines(self, qs_=qs_DEFAULT, include_labels=True, alpha=REF_LINES_ALPHA, **kwargs):
         """
         Make the saturated specific humidity curves
           q_s = 0.622*e_s/p
@@ -296,11 +296,14 @@ class Tephigram:
             k = np.argmin((y>y_min)*y)
 
             x0 = x[k] 
-            y0 = y[k] + 0.3
+            y0 = y[k] + 1.5
 
             if include_labels and x0 > x_min:
                 bbox = dict(facecolor='white', edgecolor='white', alpha=0.5)
-                plot.text(x0, y0, "%g" % (qs*1000.), color='purple', bbox=bbox)
+                units_str = ""
+                if qs == qs_[0]:
+                    units_str = "g/kg"
+                plot.text(x0, y0, "%g%s" % (qs*1000., units_str), color='purple', bbox=bbox)
 
         self._save_lines('qs_ref', lines)
         return lines
