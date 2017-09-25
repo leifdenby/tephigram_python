@@ -1,6 +1,3 @@
-"""
-Inspired from http://www.benjack.io/2017/06/12/python-cpp-tests.html
-"""
 import os
 import re
 import sys
@@ -32,4 +29,5 @@ setup(
     cmdclass=dict(test=PyTest),
     zip_safe=False,
     tests_require=['pytest'],
+    packages=["tephigram_python"],
 )
