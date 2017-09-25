@@ -234,7 +234,7 @@ class Tephigram:
         plot line at pressure `P` (in hPa)
         """
         x0 = None
-        T__ = np.linspace(T_min, T_max, 1000.)
+        T__ = np.linspace(T_min, T_max+10., 1000.)
         theta_constP = -273.15 + self.f_theta(P, T__+273.15)
 
         x, y = self._tf(T__, theta_constP)
@@ -246,7 +246,7 @@ class Tephigram:
         k = np.argmax((x<x_max)*x)
 
         if x0 is None:
-            x0 = 0.5 + x[k]
+            x0 = x_max + 1.0
         y0 = y[k]
 
         if (p_label_format is not None or z_label_format is not None) and y0 < self.y_range[1]:
@@ -263,7 +263,7 @@ class Tephigram:
             if label_inside:
                 plot.text(x_max - 0.02*lx, y0, label , color='blue', horizontalalignment='right', size=label_fontsize)
             else:
-                plot.text(x0, y0, label , color='blue', size=label_fontsize)
+                plot.text(x0, y0, label , color='blue', size=label_fontsize, verticalalignment='center')
 
         self._save_lines('p', lines)
 
