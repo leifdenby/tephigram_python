@@ -4,14 +4,13 @@ import math
 
 from matplotlib.transforms import Affine2D
 
-# import mpl_toolkits.axisartist.angle_helper as angle_helper
-# from matplotlib.projections import PolarAxes
 from mpl_toolkits.axisartist.grid_finder import FixedLocator, MaxNLocator, \
      DictFormatter
 
 from mpl_toolkits.axisartist.grid_helper_curvelinear import GridHelperCurveLinear
 from mpl_toolkits.axisartist import Subplot
 
+import profile_integration
 
 
 def esat(T):
@@ -77,6 +76,7 @@ class Tephigram:
         self.plot_sat_adiabats()
 
         self.ax1.set_yticklabels([])
+
 
     def _save_lines(self, line_type, lines):
         if not line_type in self.lines:
@@ -356,3 +356,26 @@ class Tephigram:
         plot.subplots_adjust(bottom=0.17)
 
         plot.figlegend(lines, [l.get_label() for l in lines], loc='lower center', frameon=False, ncol=ncol)
+
+    def plot_test_parcel(self, z, P, T, RH, dT0=0.1, dqv0=0.0001):
+        p = P*100.
+        Tk = T + 273.15
+        parcel_integrator = profile_integration.ThermodynamicParcelIntegration(z=z, T=Tk, p=p, rel_humid=RH)
+        Var = profile_integration.Var
+
+        F__g_to_LCL = parcel_integrator.find_LCL(dqv0=dqv0, dT0=dT0, z0=z[0])
+        p__g_to_LCL, T__g_to_LCL, z_LCL = F__g_to_LCL[:,Var.p], F__g_to_LCL[:,Var.T], F__g_to_LCL[-1,Var.z]
+        # print 'z_LCL=', z_LCL, 'T_LCL=', F__g_to_LCL[-1,Var.T]
+
+        # F__g_to_LFC, e_CIN = find_LFC(profile, dqv0=dqv0, dT0=dT0, raise_exception=False, calc_CIN=True)
+        # p__g_to_LFC, T__g_to_LFC, z_LFC = F__g_to_LFC[:,Var.p], F__g_to_LFC[:,Var.T], F__g_to_LFC[-1,Var.z]
+        # print "CIN=", e_CIN, 'z_LFC=', z_LFC, "w(CIN)=", np.sqrt(e_CIN)
+
+        F__g_to_EL, e_CAPE = parcel_integrator.find_EL(dqv0=dqv0, dT0=dT0, raise_exception=False, calc_CAPE=True, z0=z[0])
+        # p__g_to_EL, T__g_to_EL, z_EL = F__g_to_EL[:,Var.p], F__g_to_EL[:,Var.T], F__g_to_EL[-1,Var.z]
+
+        l, = self.plot_temp(P=p__g_to_LCL/100., T=T__g_to_LCL-273.15, label="test parcel", temp_type="test_parcel_temp")
+        # l, = t.plot_temp(P=p__g_to_EL/100., T=T__g_to_EL-273.15)
+        l.set_marker('.')
+        l.set_color('grey')
+        l.set_linewidth(4)

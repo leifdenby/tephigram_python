@@ -29,7 +29,7 @@ def test_plot_rh():
     tephigram.plot_temp(P=P, T=T)
     tephigram.plot_RH(P=P, T=T, RH=RH)
 
-    tephigram.savefig('tephigram_example_rh.png')
+    # tephigram.savefig('tephigram_example_rh.png')
 
 def test_plot_legend():
     tephigram = Tephigram()
@@ -45,4 +45,20 @@ def test_plot_legend():
 
     tephigram.plot_legend(lines)
 
-    tephigram.savefig('tephigram_example_legend.pdf')
+    # tephigram.savefig('tephigram_example_legend.pdf')
+
+
+def test_plot_test_parcel():
+    tephigram = Tephigram()
+
+    sounding = np.loadtxt('examples/sounding_example.dat', unpack=True)
+    P = sounding[0]
+    z = sounding[1]
+    T = sounding[2]
+    RH = sounding[4]/100.
+
+    tephigram.plot_temp(P=P, T=T)
+    tephigram.plot_RH(P=P, T=T, RH=RH)
+    tephigram.plot_test_parcel(z=z, P=P, T=T, RH=RH)
+
+    tephigram.savefig('tephigram_example_test_parcel.png')
