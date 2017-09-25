@@ -1,5 +1,7 @@
 # Python package for plotting tephigrams
 
+![Travis CI build status](https://travis-ci.org/leifdenby/tephigram_python.png?branch=master)
+
 ## Prerequisites
 
 matplotlib and numpy.
