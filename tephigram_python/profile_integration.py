@@ -4,6 +4,7 @@ contains routines for CAPE and CIN calculation.
 """
 import numpy as np
 import scipy.interpolate
+from collections import namedtuple
 
 from attrdict import AttrDict
 
@@ -58,8 +59,9 @@ class Var:
     q_i = 4
     z = 5
     p = 6
+    dq_pr = 7 # for storing increments in condensate when integrating pseudoadiabatically
 
-    names = ['w', 'T', 'q_v', 'q_l', 'q_i', 'z', 'p',]
+    names = ['w', 'T', 'q_v', 'q_l', 'q_i', 'z', 'p', 'dq_pr']
     NUM = len(names)
 
     @staticmethod
@@ -100,7 +102,7 @@ class DiscreteProfile():
         elif name in self.vars:
             y_discrete = self.vars[name]
 
-            return scipy.interpolate.interp1d(x=self.z, y=y_discrete)
+            return lambda z: scipy.interpolate.interp1d(x=self.z, y=y_discrete)(z)
         else:
             raise AttributeError("Can't find variable `{}`".format(name))
 
@@ -108,6 +110,8 @@ class DiscreteProfile():
 class ThermodynamicParcelIntegration():
     class LCLNotFoundException(Exception):
         pass
+
+    IntegrationInfo = namedtuple("IntegrationInfo", "z_LCL z_LFC z_EL e_CIN e_CAPE")
 
     def __init__(self, z, p, T, rel_humid=None, qv=None, constants=default_constants):
         self.constants = make_related_constants(constants)
@@ -118,7 +122,7 @@ class ThermodynamicParcelIntegration():
                     either the relative humidity (`rel_humid`) or water vapour
                     specific concentration (`qv`)""")
         elif not rel_humid is None:
-            pass
+            qv = rel_humid*self.pv_sat.qv_sat(T=T, p=p)
         elif not qv is None:
             rel_humid = qv/self.pv_sat.qv_sat(T=T, p=p)
         else:
@@ -126,6 +130,7 @@ class ThermodynamicParcelIntegration():
 
         if not np.all(rel_humid < 1.0):
             raise NotImplementedError("Parcel integration can't be done with 100% relative humidity in column")
+
         profile = DiscreteProfile(temp=T, rel_humid=rel_humid, p=p, qv=qv, z=z)
 
         self.profile = profile
@@ -226,7 +231,7 @@ class ThermodynamicParcelIntegration():
             if qi != 0.0:
                 raise NotImplementedError
             cp = qd*cp_d + qv*cp_v + ql*cp_l
-            rho_parcel = 1.0/((qd*R_d + qv*R_v)*T/p + ql/rho_l + qi/rho_i)
+            rho_parcel = self.calc_parcel_density(F_parcel=F[-1])
 
             dz = -dp/(rho_parcel*g)
 
@@ -246,22 +251,26 @@ class ThermodynamicParcelIntegration():
 
         return np.array(F)
 
-    def calc_parcel_density(self, F_parcel):
+    def calc_mixture_density(self, p, T, qv, ql, qi):
         R_d   = self.constants.R_d
         R_v   = self.constants.R_v
         rho_l = self.constants.rho_l
         rho_i = self.constants.rho_i
 
-        T  = F_parcel[...,Var.T]
-        p  = F_parcel[...,Var.p]
-        qv = F_parcel[...,Var.q_v]
-        ql = F_parcel[...,Var.q_l]
-        qi = F_parcel[...,Var.q_i]
         qd = 1. - qv - ql - qi
 
         rho_parcel = 1.0/((qd*R_d + qv*R_v)*T/p + ql/rho_l + qi/rho_i)
 
         return rho_parcel
+
+    def calc_parcel_density(self, F_parcel):
+        T  = F_parcel[...,Var.T]
+        p  = F_parcel[...,Var.p]
+        qv = F_parcel[...,Var.q_v]
+        ql = F_parcel[...,Var.q_l]
+        qi = F_parcel[...,Var.q_i]
+
+        return self.calc_mixture_density(p=p, T=T, qv=qv, ql=ql, qi=qi)
 
 
     def integration_along_moist_adiabat(self, p0, T0, p_min=500.0e2, dp=-10., parcel_sat_calc_num_iterations=6):
@@ -326,7 +335,11 @@ class ThermodynamicParcelIntegration():
         def stopping_criterion(F_current):
             if F_current[Var.q_l] > 0.0:
                 z = F_current[Var.z]
-                rho_e = self.profile.rho(z=z)
+
+                rho_e = self.calc_mixture_density(
+                            p=F_current[Var.p], T=self.profile.temp(z=z),
+                            qv=self.profile.qv(z=z), ql=0.0, qi=0.0)
+
                 rho_c = self.calc_parcel_density(F_parcel=F_current)
 
                 # stop once the cloud becomes buoyant, i.e. reaches the level of free convection
@@ -359,7 +372,10 @@ class ThermodynamicParcelIntegration():
         
         if calc_CIN:
             rho_c = self.calc_parcel_density(F_parcel=F)
-            rho_e = self.profile.rho(z=F[:,Var.z])
+
+            rho_e = self.calc_mixture_density(
+                        p=F_current[Var.p], T=self.profile.temp(z=z),
+                        qv=self.profile.qv(z=z), ql=0.0, qi=0.0)
 
             is_buoyant = rho_c < rho_e
             has_condensate = F[:,Var.q_l] != 0.0
@@ -377,14 +393,14 @@ class ThermodynamicParcelIntegration():
         else:
             return F
 
-    def find_EL(self, dqv0=0.0, dT0=0.0, calc_CAPE=False, z0=0.0, raise_exception=True, dp=-100., p_min=None):
+    def find_EL(self, dqv0=0.0, dT0=0.0, pseudo_adiabatic=True, include_info=False, z0=0.0, raise_exception=True, dp=-100., p_min=None,):
         constants = self.constants
 
         rh0 = self.profile.rel_humid(z0)
         T0 = self.profile.temp(z0) + dT0
         p0 = self.profile.p(z0)
         qv0 = rh0*self.pv_sat.qv_sat(T=T0, p=p0) + dqv0
-        F0 = Var.make_state(p=p0, T=T0, q_v=qv0, z=0)
+        F0 = Var.make_state(p=p0, T=T0, q_v=qv0, z=z0)
 
         class StoppingCriterion():
             def __init__(self, thermodynamic_parcel_integration):
@@ -396,10 +412,13 @@ class ThermodynamicParcelIntegration():
                     if F_current[Var.p] < p_min:
                         return True
 
-                if F_current[Var.q_l] > 0.0:
+                if F_current[Var.q_l] > 0.0 or F_current[Var.dq_pr] > 0.0:
                     z = F_current[Var.z]
-                    rho_e = self.thermodynamic_parcel_integration.profile.rho(z=z)
                     rho_c = self.thermodynamic_parcel_integration.calc_parcel_density(F_parcel=F_current)
+
+                    rho_e = self.thermodynamic_parcel_integration.calc_mixture_density(
+                                p=F_current[Var.p], T=self.thermodynamic_parcel_integration.profile.temp(z=z),
+                                qv=self.thermodynamic_parcel_integration.profile.qv(z=z), ql=0.0, qi=0.0)
 
                     if rho_c < rho_e:
                         if not self.LFC_reached:
@@ -423,6 +442,13 @@ class ThermodynamicParcelIntegration():
             else:
                 F_new = F_lifted
 
+            if pseudo_adiabatic:
+                # put all condensate into precip variable which doesn't contribute to mixture density and heat capacity
+                dq_pr = F_new[Var.q_l] + F_new[Var.q_i]
+                F_new[Var.dq_pr] = dq_pr
+                F_new[Var.q_i] = 0.0
+                F_new[Var.q_l] = 0.0
+
             return F_new
 
         F = self._integrate(F0=F0,
@@ -431,22 +457,42 @@ class ThermodynamicParcelIntegration():
                        dp=dp)
 
         
-        if calc_CAPE:
-            rho_c = self.calc_parcel_density(F_parcel=F)
-            rho_e = self.profile.rho(z=F[:,Var.z])
-
-            is_buoyant = rho_c < rho_e
-            has_condensate = F[:,Var.q_l] != 0.0
-
-            CAPE_region = np.logical_and(is_buoyant, has_condensate)
-
-            # de = drho/rho * g * dz, dp/dz = -rho * g => dz = - dp/(rho*g)
-            #    = drho/rho * g * (-dp) / rho / g
-            #    = drho/(rho**2) * (-dp)
-            de = (rho_c - rho_e)/rho_e**2.*(-dp)
-            
-            e_CAPE = np.sum(de[CAPE_region])
-
-            return F, e_CAPE
+        if include_info:
+            return F, self._calc_parcel_info(F_parcel=F, dp=dp)
         else:
             return F
+
+    def _calc_parcel_info(self, F_parcel, dp):
+        rho_c = self.calc_parcel_density(F_parcel=F_parcel)
+
+        z_parcel = F_parcel[:,Var.z]
+        rho_e = self.calc_mixture_density(
+                p=self.profile.p(z=z_parcel),
+                T=self.profile.temp(z=z_parcel),
+                qv=self.profile.qv(z=z_parcel), ql=0.0, qi=0.0)
+
+        is_buoyant = rho_c < rho_e
+        has_condensate = np.logical_or(F_parcel[:,Var.q_l] != 0.0, F_parcel[:,Var.dq_pr] != 0.0)
+
+        CAPE_region = np.logical_and(is_buoyant, has_condensate)
+        z_LFC = z_parcel[np.logical_and(has_condensate, is_buoyant)].min()
+
+        below_CAPE_region = z_parcel < z_LFC
+
+        CIN_region = np.logical_and(np.logical_and(np.logical_not(is_buoyant), has_condensate), below_CAPE_region)
+
+        # de = drho/rho * g * dz, dp/dz = -rho * g => dz = - dp/(rho*g)
+        #    = drho/rho * g * (-dp) / rho / g
+        #    = drho/(rho**2) * (-dp)
+        de = (rho_c - rho_e)/rho_e**2.*(-dp)
+
+        e_CIN = np.sum(de[CIN_region])
+        e_CAPE = np.sum(de[CAPE_region])
+
+        z_LCL = z_parcel[has_condensate].min()
+        z_EL = z_parcel.max()
+
+        return self.IntegrationInfo(
+                e_CIN=e_CIN, e_CAPE=e_CAPE,
+                z_LCL=z_LCL, z_LFC=z_LFC, z_EL=z_EL,
+        )

@@ -33,6 +33,8 @@ def esat(T):
 
 plot.ion()
 
+REF_LINES_ALPHA = 0.4
+
 T1=-10.
 T2=40.
 theta1=-12.
@@ -98,7 +100,7 @@ class Tephigram:
         lines = self.plot_temp(P=P, T=T_dp, temp_type="moisture", label="moisture", marker='o', color='green')
         self._save_lines('moisture', lines)
 
-    def plot_temp(self, P, T, color='red', marker='o', label='temperature', with_height_markers=[], marker_interval=None, temp_type="temp"):
+    def plot_temp(self, P, T, color='red', marker='o', label='temperature', with_height_markers=[], marker_interval=None, temp_type="temp", **kwargs):
         """
         Input sounding defined by P and T
 
@@ -109,7 +111,7 @@ class Tephigram:
 
         x, y = self._tf(T, theta-273.15)
 
-        lines = self.ax1.plot(*self._tf(T, theta-273.15), marker=marker, color=color, label=label)
+        lines = self.ax1.plot(*self._tf(T, theta-273.15), marker=marker, color=color, label=label, **kwargs)
 
         if len(with_height_markers) != 0:
             if len(with_height_markers) != len(x):
@@ -129,7 +131,7 @@ class Tephigram:
 
         return lines
 
-    def plot_RH(self, P, T, RH, color='green', label='moisture', **kwargs):
+    def plot_RH(self, P, T, RH, color='green', label='moisture', marker='o', moisture_type="moisture", **kwargs):
         """
         dew-point equation source: http://andrew.rsmas.miami.edu/bmcnoldy/Humidity.html
         """
@@ -137,9 +139,9 @@ class Tephigram:
 
         theta = self.f_theta(P=P, T=(T_dp+273.15))
 
-        lines = self.ax1.plot(*self._tf(T_dp, theta-273.15), marker='o', color='green', label='moisture', **kwargs)
+        lines = self.ax1.plot(*self._tf(T_dp, theta-273.15), marker=marker, color=color, label=label, **kwargs)
 
-        self._save_lines('moisture', lines)
+        self._save_lines(moisture_type, lines)
 
         return lines
 
@@ -194,31 +196,31 @@ class Tephigram:
         """
         return self.tr.transform(np.array([T, theta]).T).T
 
-    def plot_temp_lines(self):
+    def plot_temp_lines(self, alpha=REF_LINES_ALPHA):
         lines = []
         for T in T_:
-            lines += self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle=':', color='red', label='const. temp.')
+            lines += self.ax1.plot(*self._tf([T, T], [theta_min, theta_max]  ), linestyle=':', color='red', label='const. temp.', alpha=alpha)
         self._save_lines('temp_ref', lines)
 
         return lines
 
-    def plot_pot_temp_lines(self):
+    def plot_pot_temp_lines(self, alpha=REF_LINES_ALPHA):
         theta_ = np.arange(theta_min, theta_max, d_theta)
         lines = []
         for theta in theta_:
-            lines += self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle=':', color='green', label='dry adiabat')
+            lines += self.ax1.plot(*self._tf([T_min, T_max], [theta, theta]  ), linestyle=':', color='green', label='dry adiabat', alpha=alpha)
 
         self._save_lines('pot_temp_ref', lines)
         return lines
 
-    def _plot_pressure_lines(self):
+    def _plot_pressure_lines(self, alpha=REF_LINES_ALPHA):
         """
         theta = T*(1000/p)^0.286
         """
         for P in np.arange(P_min, P_max+0.1, d_P):
-            self.plot_pressure_line(P=P, include_label=self.plot_annotations)
+            self.plot_pressure_line(P=P, include_label=self.plot_annotations, alpha=alpha)
 
-    def plot_pressure_line(self, P, include_label=False):
+    def plot_pressure_line(self, P, include_label=False, **kwargs):
         """
         plot line at pressure `P` (in hPa)
         """
@@ -227,7 +229,7 @@ class Tephigram:
         theta_constP = -273.15 + self.f_theta(P, T__+273.15)
 
         x, y = self._tf(T__, theta_constP)
-        lines = self.ax1.plot(x, y, linestyle=':', color='blue')
+        lines = self.ax1.plot(x, y, linestyle=':', color='blue', **kwargs)
 
         x_min, x_max = self.x_range
         k = np.argmax((x<x_max)*x)
@@ -249,7 +251,7 @@ class Tephigram:
     def f_theta(self, P, T):
         return T*(P/P_max)**-0.286
 
-    def plot_qs_lines(self):
+    def plot_qs_lines(self, alpha=REF_LINES_ALPHA):
         """
         Make the saturated specific humidity curves
           q_s = 0.622*e_s/p
@@ -266,7 +268,7 @@ class Tephigram:
 
             x, y = self._tf(T_, theta)
 
-            lines += self.ax1.plot(x, y, linestyle='--', color='purple', label=r"$q_{sat}$ const.")
+            lines += self.ax1.plot(x, y, linestyle='--', color='purple', label=r"$q_{sat}$ const.", alpha=alpha)
 
             k = np.argmin((y>self.y_range[0])*y)
 
@@ -323,7 +325,7 @@ class Tephigram:
             theta_const_qs = np.array(theta_const_qs_K) - 273.15
             
             x, y = self._tf(T, theta_const_qs)
-            lines += self.ax1.plot(x, y, linestyle='-.', color='black', label='moist adiabat')
+            lines += self.ax1.plot(x, y, linestyle='-.', color='black', label='moist adiabat', alpha=0.6)
 
             k = np.argmin(np.abs(np.array(P_arr)-1000.))
             T_at_1000 = T[k]
@@ -342,7 +344,7 @@ class Tephigram:
 
     def plot_legend(self, lines=[], include_ref_lines=True, ncol=3):
         if len(lines) == 0:
-            LINES_NAMES = ['temp', 'moisture']
+            LINES_NAMES = ['temp', 'moisture', 'test_parcel_temp', 'test_parcel_moisture']
             lines = [self.lines[ln][0] for ln in LINES_NAMES if ln in self.lines]
 
         if include_ref_lines:
@@ -363,19 +365,27 @@ class Tephigram:
         parcel_integrator = profile_integration.ThermodynamicParcelIntegration(z=z, T=Tk, p=p, rel_humid=RH)
         Var = profile_integration.Var
 
-        F__g_to_LCL = parcel_integrator.find_LCL(dqv0=dqv0, dT0=dT0, z0=z[0])
-        p__g_to_LCL, T__g_to_LCL, z_LCL = F__g_to_LCL[:,Var.p], F__g_to_LCL[:,Var.T], F__g_to_LCL[-1,Var.z]
-        # print 'z_LCL=', z_LCL, 'T_LCL=', F__g_to_LCL[-1,Var.T]
 
-        # F__g_to_LFC, e_CIN = find_LFC(profile, dqv0=dqv0, dT0=dT0, raise_exception=False, calc_CIN=True)
-        # p__g_to_LFC, T__g_to_LFC, z_LFC = F__g_to_LFC[:,Var.p], F__g_to_LFC[:,Var.T], F__g_to_LFC[-1,Var.z]
-        # print "CIN=", e_CIN, 'z_LFC=', z_LFC, "w(CIN)=", np.sqrt(e_CIN)
+        F_parcel, parcel_info = parcel_integrator.find_EL(dqv0=dqv0, dT0=dT0, raise_exception=False, include_info=True, z0=z[0])
+        p_parcel, T_parcel, qv_parcel = F_parcel[:,Var.p], F_parcel[:,Var.T], F_parcel[:,Var.q_v]
 
-        F__g_to_EL, e_CAPE = parcel_integrator.find_EL(dqv0=dqv0, dT0=dT0, raise_exception=False, calc_CAPE=True, z0=z[0])
-        # p__g_to_EL, T__g_to_EL, z_EL = F__g_to_EL[:,Var.p], F__g_to_EL[:,Var.T], F__g_to_EL[-1,Var.z]
+        rh_parcel = qv_parcel/parcel_integrator.pv_sat.qv_sat(p=p_parcel, T=T_parcel)
 
-        l, = self.plot_temp(P=p__g_to_LCL/100., T=T__g_to_LCL-273.15, label="test parcel", temp_type="test_parcel_temp")
-        # l, = t.plot_temp(P=p__g_to_EL/100., T=T__g_to_EL-273.15)
-        l.set_marker('.')
-        l.set_color('grey')
-        l.set_linewidth(4)
+        lines = []
+
+        # l, = self.plot_temp(P=p__g_to_LCL/100., T=T__g_to_LCL-273.15, label="test parcel", temp_type="test_parcel_temp")
+        lines += self.plot_temp(P=p_parcel/100., T=T_parcel-273.15, label="test parcel temp", 
+                temp_type="test_parcel_temp", color='grey', linewidth=4, marker='',
+        )
+        lines += self.plot_RH(P=p_parcel/100., T=T_parcel-273.15, RH=rh_parcel, label="test parcel moisture", 
+                moisture_type="test_parcel_moisture", color='grey', linewidth=4, marker='', linestyle=':'
+        )
+
+        parcel_info_str = r"$e_{{CIN}}={e_CIN:.0f}$J/kg".format(e_CIN=parcel_info.e_CIN)\
+                + "\n" + r"$e_{{CAPE}}={e_CAPE:.0f}$J/kg".format(e_CAPE=parcel_info.e_CAPE)
+
+        plot.text(x=1.0, y=1.0, s=parcel_info_str, horizontalalignment='right', 
+                verticalalignment='top', transform=self.plot.gca().transAxes,
+                bbox=dict(fc="white"))
+
+        return parcel_info

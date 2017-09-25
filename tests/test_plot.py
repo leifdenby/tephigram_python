@@ -59,6 +59,12 @@ def test_plot_test_parcel():
 
     tephigram.plot_temp(P=P, T=T)
     tephigram.plot_RH(P=P, T=T, RH=RH)
-    tephigram.plot_test_parcel(z=z, P=P, T=T, RH=RH)
+    parcel_info = tephigram.plot_test_parcel(z=z, P=P, T=T, RH=RH)
+    print parcel_info
+    tephigram.plot_legend()
 
     tephigram.savefig('tephigram_example_test_parcel.png')
+
+
+if __name__ == "__main__":
+    test_plot_test_parcel()
