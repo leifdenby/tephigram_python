@@ -10,7 +10,7 @@ from mpl_toolkits.axisartist.grid_finder import FixedLocator, MaxNLocator, \
 from mpl_toolkits.axisartist.grid_helper_curvelinear import GridHelperCurveLinear
 from mpl_toolkits.axisartist import Subplot
 
-import profile_integration
+from . import profile_integration
 
 
 def esat(T):

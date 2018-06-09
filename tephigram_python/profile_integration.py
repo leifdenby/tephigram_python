@@ -8,7 +8,7 @@ from collections import namedtuple
 
 from attrdict import AttrDict
 
-import parameterisations
+from . import parameterisations
 
 default_constants = AttrDict({
     "R_d": 287.05,
@@ -66,7 +66,7 @@ class Var:
 
     @staticmethod
     def print_formatted(v, formatting='%g'):
-        print ",\t".join([("%s=" + formatting) % (Var.names[i], v[i]) for i in range(Var.NUM)])
+        print(",\t".join([("%s=" + formatting) % (Var.names[i], v[i]) for i in range(Var.NUM)]))
 
     @staticmethod
     def repr(v, formatting='%g', skip=[]):
@@ -77,7 +77,7 @@ class Var:
     @staticmethod
     def make_state(**kwargs):
         s = np.zeros((Var.NUM))
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             s[getattr(Var, k)] = v
 
         return s
