@@ -20,7 +20,7 @@ class PyTest(TestCommand):
 
 setup(
     name='tephigram',
-    version='0.1.1',
+    version='0.2.0',
     author='Leif Denby',
     author_email='l.c.denby@leeds.ac.uk',
     description='Tephigram plotting and profile integration',
@@ -30,5 +30,5 @@ setup(
     zip_safe=False,
     tests_require=['pytest'],
     install_requires=['attrdict',],
-    packages=["tephigram_python"],
+    packages=["tephigram"],
 )

@@ -2,6 +2,10 @@
 
 ![Travis CI build status](https://travis-ci.org/leifdenby/tephigram_python.png?branch=master)
 
+## Installation
+
+> pip install tephigram
+
 ## Prerequisites
 
 matplotlib and numpy.
@@ -35,9 +39,6 @@ Other useful methods of `Tephigram` include `plot_temp` and `plot_RH`.
 (Equilibrium Level).
 
 See [tests/](tests/) for more usage examples.
-
-## TODO
-- add to pypi and add pip instructions
 
 ## Sources of inspiration
 

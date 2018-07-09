@@ -1,1 +1,0 @@
-from tephigram_plotter import Tephigram

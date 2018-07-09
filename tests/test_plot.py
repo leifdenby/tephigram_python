@@ -4,7 +4,7 @@ matplotlib.use("Svg")
 import numpy as np
 import matplotlib.pyplot as plot
 
-from tephigram_python import Tephigram
+from tephigram import Tephigram
 
 def test_plot_dewpoint_temp():
     tephigram = Tephigram()
